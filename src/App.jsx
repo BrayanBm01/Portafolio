@@ -46,16 +46,15 @@ export default function App() {
 
       <Navbar />
 
-      <main id="main">
+      <main id="main" className="lg:pl-[72px]">
         <Hero />
         <About />
         <Skills />
         <Services />
         <Projects />
         <Contact />
+        <Footer />
       </main>
-
-      <Footer />
     </LenisProvider>
   )
 }

@@ -82,10 +82,13 @@ export default function Hero() {
       dw = w
       dh = w / ir
     }
-    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+    // En móvil, si dh < h, anclar arriba para evitar huecos y cortes extraños
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+    const dy = (h > dh && isMobile) ? 0 : (h - dh) / 2
+    ctx.drawImage(img, (w - dw) / 2, dy, dw, dh)
   }
 
-  // Carga la estática (con fallback PNG) + todos los frames
+  // Carga inmediata de la imagen estática + carga diferida en background de los frames
   useEffect(() => {
     let alive = true
     const loader = (src, fb) =>
@@ -95,14 +98,20 @@ export default function Hero() {
         im.onerror = () => (fb ? loader(fb).then(resolve) : resolve(null))
         im.src = src
       })
-    Promise.all([
-      loader(HANA_STATIC, HANA_FALLBACK),
-      ...FRAMES.map((src) => loader(src)),
-    ]).then((imgs) => {
-      if (!alive) return
-      frameImagesRef.current = imgs
-      drawFrame(frameIdxRef.current)
+
+    // 1. Mostrar de inmediato la imagen principal sin esperar a los 49 frames
+    loader(HANA_STATIC, HANA_FALLBACK).then((staticImg) => {
+      if (!alive || !staticImg) return
+      frameImagesRef.current = [staticImg]
+      drawFrame(0)
+
+      // 2. Precargar frames para la animación desktop en segundo plano
+      Promise.all(FRAMES.map((src) => loader(src))).then((frames) => {
+        if (!alive) return
+        frameImagesRef.current = [staticImg, ...frames]
+      })
     })
+
     return () => {
       alive = false
     }
@@ -196,16 +205,18 @@ export default function Hero() {
       })
 
       // ---------------------------------------------------------------
-      // MÓVIL — sin pin, parallax sutil
+      // MÓVIL — sin pin, parallax sutil y desvanecimiento elegante
       // ---------------------------------------------------------------
       mm.add('(max-width: 767px)', () => {
         gsap.to(hanaRef.current, {
-          y: -30,
+          y: -35,
+          opacity: 0.3,
           ease: 'none',
           scrollTrigger: { trigger: sectionRef.current, start: 'top top', end: 'bottom top', scrub: true },
         })
         gsap.to(textRef.current, {
-          y: 20,
+          y: 35,
+          opacity: 0.15,
           ease: 'none',
           scrollTrigger: { trigger: sectionRef.current, start: 'top top', end: 'bottom top', scrub: true },
         })
@@ -237,21 +248,18 @@ export default function Hero() {
           {profile.alias.toUpperCase()}
         </div>
 
-        {/* Régimen de legibilidad en móvil */}
+        {/* HANA — protagonista visual con adaptación refinada para móviles */}
         <div
-          className="pointer-events-none absolute inset-x-0 top-0 z-[4] h-[58svh] bg-linear-to-b from-ink/85 via-ink/30 to-transparent md:hidden"
-          aria-hidden="true"
-        />
-
-        {/* HANA — protagonista visual */}
-        <div
-          className={`absolute z-[5] right-[-6vw] top-[6svh] h-[44svh] w-[58vw] transition-transform duration-300 will-change-transform md:right-[7px] md:top-[calc(6svh+10px)] md:h-[min(80svh,708px)] md:w-[min(40vw,528px)] ${
-            modalOpen ? 'scale-[1.04] origin-[70%_45%]' : ''
-          }`}
+          className={`absolute z-[5]
+            right-[-3vw] top-[7svh] h-[52svh] w-[56vw] max-w-[300px]
+            sm:right-0 sm:top-[4svh] sm:h-[58svh] sm:w-[48vw] sm:max-w-[340px]
+            md:right-[7px] md:top-[calc(6svh+10px)] md:h-[min(80svh,708px)] md:w-[min(40vw,528px)] md:max-w-none
+            transition-transform duration-300 will-change-transform
+            ${modalOpen ? 'scale-[1.04] origin-[70%_45%]' : ''}`}
         >
           <div
-            className="hana-halo absolute -inset-10 rounded-full opacity-30 blur-[70px]"
-            style={{ background: 'radial-gradient(circle, rgba(94,234,212,0.3) 0%, transparent 65%)' }}
+            className="hana-halo absolute -inset-6 rounded-full opacity-35 blur-[60px]"
+            style={{ background: 'radial-gradient(circle, rgba(94,234,212,0.35) 0%, transparent 68%)' }}
           />
           <div ref={hanaRef} className="hero-hana relative h-full w-full will-change-transform">
             <button
@@ -269,6 +277,20 @@ export default function Hero() {
                 aria-hidden="true"
               />
             </button>
+
+            {/* Fundidos suaves para móvil: integración cinematográfica sin cortes bruscos */}
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-ink via-ink/60 to-transparent md:hidden"
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 w-14 bg-gradient-to-r from-ink/75 to-transparent md:hidden"
+              aria-hidden="true"
+            />
+
+            <span className="pointer-events-none absolute -bottom-1 right-1 font-mono text-[9px] uppercase tracking-[0.25em] text-accent/80 md:hidden">
+              // HANA
+            </span>
             <span className="pointer-events-none absolute bottom-2 right-0 hidden font-mono text-[10px] uppercase tracking-[0.3em] text-dim/80 md:block">
               // HANA — AI personal
             </span>
@@ -277,43 +299,44 @@ export default function Hero() {
 
         {/* Contenido textual (movimiento B: sale como un bloque) */}
         <div className="relative z-10 flex h-full items-center">
-          <div ref={textRef} className="hero-text container-page w-full pb-16 pt-20 will-change-transform">
-            <p className="mb-5 font-mono text-[13px] uppercase tracking-[0.3em] text-accent">
+          <div ref={textRef} className="hero-text container-page w-full pb-14 pt-20 will-change-transform sm:pb-16 sm:pt-24">
+            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.3em] text-accent sm:mb-5 sm:text-[13px]">
               Hola, soy{' '}
-              <span className="text-fg/80">{profile.name}</span> — <span className="text-dim">haz scroll</span>
+              <span className="text-fg/80">{profile.name}</span>
+              <span className="hidden text-dim sm:inline"> — haz scroll</span>
             </p>
 
+            {/* NOMBRE PRINCIPAL — Brayan Borja en grande con contraste nítido */}
             <h1
-              className="hero-brand font-display text-[clamp(3.6rem,12vw,9.5rem)] font-semibold leading-[0.9] tracking-[-0.03em] text-fg"
-              aria-label={`${profile.brand} — ${profile.name} — ${profile.role}`}
+              className="hero-brand font-display font-semibold leading-[0.88] tracking-[-0.03em] text-fg drop-shadow-[0_2px_16px_rgba(8,9,13,0.9)]"
+              style={{ fontSize: 'clamp(2.85rem, 11.5vw, 9.5rem)' }}
+              aria-label={`Brayan Borja — ${profile.role}`}
             >
-              <span className="hero-line">
+              <span className="hero-line block">
+                <span className="hero-line-inner">Brayan</span>
+              </span>
+              <span className="hero-line block">
                 <span className="hero-line-inner">
-                  {profile.brand}
-                  <span className="caret text-accent" aria-hidden="true">
-                    _
-                  </span>
+                  Borja
+                  <span className="caret text-accent" aria-hidden="true">_</span>
                 </span>
               </span>
             </h1>
 
-            <p className="mt-6 font-mono text-[clamp(0.95rem,2.6vw,1.5rem)] uppercase tracking-[0.3em] text-fg/85">
-              {profile.name}
-            </p>
-            <p className="mt-2 font-mono text-sm uppercase tracking-[0.28em] text-accent">
+            <p className="mt-3.5 font-mono text-xs uppercase tracking-[0.28em] text-accent sm:mt-5 sm:text-sm">
               {profile.role}
-              <span className="ml-3 hidden text-dim sm:inline">/ {profile.roleExtra}</span>
+              <span className="ml-2 hidden text-dim sm:inline">/ {profile.roleExtra}</span>
             </p>
 
-            <p className="mt-5 max-w-md text-base leading-relaxed text-muted sm:text-lg">
+            <p className="mt-3.5 max-w-[260px] text-sm leading-relaxed text-muted sm:max-w-md sm:text-base sm:mt-5 md:text-lg">
               {profile.tagline}
             </p>
 
-            <div className="mt-9 flex flex-wrap items-center gap-4">
+            <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-9 sm:gap-4">
               <a
                 href="#projects"
                 onClick={(e) => go(e, '#projects')}
-                className="group inline-flex items-center gap-3 rounded-full bg-fg px-7 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="group inline-flex items-center gap-2 rounded-full bg-fg px-5 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:px-7 sm:py-3.5 sm:gap-3"
               >
                 Ver proyectos
                 <ArrowDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
@@ -321,14 +344,14 @@ export default function Hero() {
               <a
                 href="#contact"
                 onClick={(e) => go(e, '#contact')}
-                className="inline-flex items-center gap-2 rounded-full border border-line-strong px-7 py-3.5 text-sm font-medium text-fg transition-colors hover:border-accent/60 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                className="inline-flex items-center gap-2 rounded-full border border-line-strong px-5 py-2.5 text-sm font-medium text-fg transition-colors hover:border-accent/60 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:px-7 sm:py-3.5"
               >
                 Contactar
                 <ArrowRight className="h-4 w-4" />
               </a>
             </div>
 
-            <p className="mt-9 inline-flex items-center gap-2.5 font-mono text-xs text-dim">
+            <p className="mt-6 inline-flex items-center gap-2.5 font-mono text-xs text-dim sm:mt-9">
               <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
               {profile.availability || 'Disponible para proyectos'}
             </p>
@@ -353,7 +376,7 @@ export default function Hero() {
           style={{ writingMode: 'vertical-rl' }}
           aria-hidden="true"
         >
-          BNakan0 — software developer
+          Brayan Borja — software developer
         </span>
       </div>
 

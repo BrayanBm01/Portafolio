@@ -33,10 +33,13 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* desplazamiento suave a anclas sin Lenis (nativo) */
+/* desplazamiento suave a anclas sin Lenis */
 section[id] {
-  scroll-margin-top: 4.5rem;
+  scroll-margin-top: 2rem;
 }
+
+/* Nota: el offset del sidebar lateral se aplica con
+   lg:pl-[72px] xl:pl-[80px] directamente en App.jsx */
 
 ::selection {
   background: var(--color-accent);
